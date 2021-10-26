@@ -4,6 +4,7 @@ import (
 	"errors"
 	"regexp"
 	"sync"
+	"sync/atomic"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -13,7 +14,7 @@ func init() {
 	logConfig := zap.NewDevelopmentConfig()
 	logConfig.OutputPaths = []string{"stdout"}
 	zapLogger, _ := logConfig.Build()
-	zapCore = &zapcoreWrapper{Core: zapLogger.Core()}
+	zapCore.setCore(zapLogger.Core())
 }
 
 // ErrNoSuchLogger is returned when the util pkg is asked for a non existent logger
@@ -28,7 +29,7 @@ var levels = make(map[string]zap.AtomicLevel)
 var zapOptions []zap.Option
 
 //var zapCore zapcore.Core
-var zapCore *zapcoreWrapper
+var zapCore = &zapcoreWrapper{}
 
 var levelResolver = func(name string) zapcore.Level {
 	return zapcore.InfoLevel
@@ -42,11 +43,11 @@ func SetupLogging(logger zapcore.Core, resolver func(string) zapcore.Level, opts
 
 	//zapCore = logger
 
-	zapCore.Core = logger
+	loggerMutex.Lock()
+	zapCore.setCore(logger)
 	levelResolver = resolver
 	zapOptions = opts
 
-	loggerMutex.Lock()
 	for name := range loggers {
 		levels[name].SetLevel(resolver(name))
 	}
@@ -150,5 +151,33 @@ func getLogger(name string) *zap.SugaredLogger {
 }
 
 type zapcoreWrapper struct {
-	zapcore.Core
+	core atomic.Value
+}
+
+func (z *zapcoreWrapper) setCore(core zapcore.Core) {
+	z.core.Store(core)
+}
+
+func (z *zapcoreWrapper) getCore() zapcore.Core {
+	return z.core.Load().(zapcore.Core)
+}
+
+func (z *zapcoreWrapper) Enabled(level zapcore.Level) bool {
+	return z.getCore().Enabled(level)
+}
+
+func (z *zapcoreWrapper) With(fields []zapcore.Field) zapcore.Core {
+	return z.getCore().With(fields)
+}
+
+func (z *zapcoreWrapper) Check(entry zapcore.Entry, entry2 *zapcore.CheckedEntry) *zapcore.CheckedEntry {
+	return z.getCore().Check(entry, entry2)
+}
+
+func (z *zapcoreWrapper) Write(entry zapcore.Entry, fields []zapcore.Field) error {
+	return z.getCore().Write(entry, fields)
+}
+
+func (z *zapcoreWrapper) Sync() error {
+	return z.getCore().Sync()
 }
