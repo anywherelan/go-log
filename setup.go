@@ -150,16 +150,20 @@ func getLogger(name string) *zap.SugaredLogger {
 	return log
 }
 
+type atomicContainer struct {
+	value zapcore.Core
+}
+
 type zapcoreWrapper struct {
 	core atomic.Value
 }
 
 func (z *zapcoreWrapper) setCore(core zapcore.Core) {
-	z.core.Store(core)
+	z.core.Store(atomicContainer{value: core})
 }
 
 func (z *zapcoreWrapper) getCore() zapcore.Core {
-	return z.core.Load().(zapcore.Core)
+	return z.core.Load().(atomicContainer).value
 }
 
 func (z *zapcoreWrapper) Enabled(level zapcore.Level) bool {
