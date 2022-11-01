@@ -55,3 +55,10 @@ type ZapEventLogger struct {
 func FormatRFC3339(t time.Time) string {
 	return t.UTC().Format(time.RFC3339Nano)
 }
+
+// WithSkip returns a new logger that skips the specified number of stack frames when reporting the
+// line/file.
+func WithSkip(l *ZapEventLogger, skip int) *ZapEventLogger {
+	// TODO: implement correctly
+	return l
+}
